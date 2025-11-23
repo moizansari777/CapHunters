@@ -19,7 +19,7 @@ class EagleEmblemsScraper
     @logger.info("Starting scrape of #{URL}")
     page = @agent.get(URL)
     extract_products(page)
-    @logger.info("Scraping completed. Found #{products.length} products")
+    @logger.info("   completed. Found #{products.length} products")
   rescue Mechanize::ResponseCodeError => e
     @logger.error("HTTP error: #{e.message}")
     raise

@@ -1,7 +1,6 @@
 require 'mechanize'
 require 'json'
 require 'selenium-webdriver'
-
 class Eaglecrest
   URL = 'https://www.eaglecrest.com/headwear'
 
@@ -26,13 +25,12 @@ class Eaglecrest
 
     @driver = Selenium::WebDriver.for(:chrome, options: options)
   end
-    
 
   def scrape
     chrome_driver
     puts "Scraping categories from #{URL}"
     page = @agent.get(URL)
-   	extract_category_links(page)
+    extract_category_links(page)
     @driver.quit
   rescue Mechanize::ResponseCodeError => e
     puts "HTTP error: #{e.message}"
@@ -45,7 +43,6 @@ class Eaglecrest
   private
 
   def extract_category_links(page)
-    category_links = []
     page.css('a.category-link').each do |link|
       products_page = @agent.get(link.attr('href'))
       extract_products(products_page)
@@ -54,11 +51,11 @@ class Eaglecrest
 
   def extract_products(page)
     products = []
-    page = @driver.get(page.uri)
+    @driver.get(page.uri)
     sleep 2
     scroll_down_slowly(@driver)
-    product_elements = @driver.find_elements(css: "li.product-title a")
-    product_links = product_elements.map { |el| el.attribute("href") }
+    product_elements = @driver.find_elements(css: 'li.product-title a')
+    product_links = product_elements.map { |el| el.attribute('href') }
     product_links.each do |item|
       product_page = @agent.get(item)
       name = product_page.css('h1.product-title').text.strip
@@ -66,15 +63,15 @@ class Eaglecrest
       puts "Scraping product: #{name} (SKU: #{sku})"
 
       image_urls = product_page.css('.slides li a').map do |img|
-        "https://www.eaglecrest.com" + img.attr('data-enlarge-image')
+        'https://www.eaglecrest.com' + img.attr('data-zoom-image')
       end
 
       image_urls.each_with_index do |image_url, index|
         download_image(image_url, sku, index + 1)
       end
       if image_urls.empty?
-        main_image_url = product_page.css('#product-detail-gallery-main-img').attr('src')
-        download_image(main_image_url, sku)
+        main_image_url = 'https://www.eaglecrest.com' + product_page.css('#product-detail-gallery-main-img').attr('data-zoom-image')
+        download_image(main_image_url, sku, 1)
       end
       products << { name: name, sku: sku, images: image_urls }
     end
@@ -82,58 +79,69 @@ class Eaglecrest
   end
 end
 
-def scroll_down_slowly(driver, step_fraction: 0.15, pause: 5, max_loops: 20)
-  get_height = -> {
+def scroll_down_slowly(driver, step_fraction: 0.05, pause: 3, max_loops: 50)
+  get_height = lambda {
     driver.execute_script(
-      "return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);"
+      'return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);'
     ).to_f
   }
 
-  puts "Scrolling down to bottom of page..."
+  puts 'Scrolling until real bottom is reached...'
 
   previous_total = get_height.call
   current_y = 0.0
-  step = previous_total * step_fraction
 
-  loops = 0
-  while loops < max_loops
-    step = [previous_total * step_fraction, 1.0].max
-    target = [current_y + step, previous_total].min
-    driver.execute_script("window.scrollTo(0, arguments[0]);", target)
+  loop_count = 0
+  loop do
+    break if loop_count >= max_loops
+
+    # Recalculate scroll height each loop
+    total_height = get_height.call
+    step = [total_height * step_fraction, 50].max
+    target = [current_y + step, total_height].min
+
+    driver.execute_script('window.scrollTo(0, arguments[0]);', target)
     sleep pause
 
-    total_after = get_height.call
-    puts "Total after scroll: #{total_after}"
-    if total_after > previous_total
-      previous_total = total_after
+    new_total = get_height.call
+    puts "Scroll height after scroll: #{new_total}"
+
+    # If scroll height increased → new content loaded
+    if new_total > previous_total
+      previous_total = new_total
+      puts 'New content loaded... updating height.'
+    end
+
+    # If target reached the end AND height did not change → bottom found
+    if (previous_total - target).abs <= 5.0 && new_total == previous_total
+      puts 'Bottom reached!'
+      break
     end
 
     current_y = target
-    loops += 1
-
-    break if (previous_total - current_y) <= 5.0
+    loop_count += 1
   end
 
-  driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+  # Force scroll to bottom again for safety
+  driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
 end
 
-
-def download_image(image_url, sku, index = "")
+def download_image(image_url, sku, index = '')
   return unless image_url && sku
 
   begin
     # Create eaglecrest folder inside images directory
     Dir.mkdir('images') unless Dir.exist?('images')
     Dir.mkdir('images/eaglecrest') unless Dir.exist?('images/eaglecrest')
-    
+
     filename = "images/eaglecrest/#{sku.downcase}-#{index}.jpg"
-    
+
     # Skip if image already exists
     if File.exist?(filename)
       puts "Skipping SKU #{sku}-#{index}: Image already exists"
       return
     end
-    
+
     image_data = Mechanize.new.get(image_url).body
     File.open(filename, 'wb') do |file|
       file.write(image_data)

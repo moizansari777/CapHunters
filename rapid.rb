@@ -5,7 +5,7 @@ require 'cgi'
 require 'selenium-webdriver'
 
 class Rapid
-  URL = 'https://www.rapiddominance.com/search-result?searchWord=caps&searchDesc=caps&searchType=undefined'
+  URL = 'https://www.rapiddominance.com/search-result?searchWord=cap&searchDesc=cap&searchType=undefined'
 
   def initialize
     options = Selenium::WebDriver::Chrome::Options.new
@@ -75,7 +75,7 @@ class Rapid
       # Find all slider elements
       sleep 2
       sliders = @driver.find_elements(:css, "div.slider-wrapper ul.slider")
-      
+
       # Check if we have at least 2 sliders (index 1 exists)
       if sliders.length < 2
         puts "Warning: Expected at least 2 sliders, found #{sliders.length}. Skipping this item."
@@ -91,13 +91,12 @@ class Rapid
         close_modal
         return
       end
-      
+      sku = @driver.find_element(:css, ".modal-content a.font-size-lg").text.strip
       slider_items.each_with_index do |li, index|
         src = li.find_element(:css, "img").attribute("src")
-        sku = src.split("/").last.split(".").first
         download_image(src, sku, index+1)
       end
-      
+
       close_modal
     rescue StandardError => e
       puts "Error parsing page: #{e.message}"
@@ -125,7 +124,6 @@ class Rapid
     begin
       Dir.mkdir('images') unless Dir.exist?('images')
       Dir.mkdir('images/rapid') unless Dir.exist?('images/rapid')
-      
       filename = "images/rapid/#{sku.downcase}-#{image_number}.jpg"
       
       if File.exist?(filename)
